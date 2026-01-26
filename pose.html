@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: black;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+      }
+      #container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      video {
+        display: none;
+      }
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1); /* Mirror the view */
+      }
+      #debug {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: #0f0;
+        font-family: monospace;
+        font-size: 12px;
+        background: rgba(0,0,0,0.7);
+        padding: 10px;
+        border-radius: 5px;
+        z-index: 100;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <video id="video" playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div id="debug">Initializing...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+    <script>
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const debug = document.getElementById("debug");
+
+      let frameCount = 0;
+      let lastTime = Date.now();
+      let fps = 0;
+
+      // Pose landmark indices
+      const POSE_LANDMARKS = {
+        LEFT_SHOULDER: 11,
+        RIGHT_SHOULDER: 12,
+        LEFT_ELBOW: 13,
+        RIGHT_ELBOW: 14,
+        LEFT_WRIST: 15,
+        RIGHT_WRIST: 16,
+        LEFT_HIP: 23,
+        RIGHT_HIP: 24,
+        LEFT_KNEE: 25,
+        RIGHT_KNEE: 26,
+        LEFT_ANKLE: 27,
+        RIGHT_ANKLE: 28,
+      };
+
+      // Connection lines for drawing skeleton
+      const CONNECTIONS = [
+        // Arms
+        [11, 13], [13, 15], // Left arm
+        [12, 14], [14, 16], // Right arm
+        // Torso
+        [11, 12], // Shoulders
+        [11, 23], [12, 24], // Sides
+        [23, 24], // Hips
+        // Legs
+        [23, 25], [25, 27], // Left leg
+        [24, 26], [26, 28], // Right leg
+      ];
+
+      const pose = new Pose({
+        locateFile: (file) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+      });
+
+      pose.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        smoothSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+
+      pose.onResults((results) => {
+        // Calculate FPS
+        frameCount++;
+        const now = Date.now();
+        if (now - lastTime >= 1000) {
+          fps = frameCount;
+          frameCount = 0;
+          lastTime = now;
+        }
+
+        // Draw frame
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw camera image (mirrored)
+        ctx.scale(-1, 1);
+        ctx.translate(-canvas.width, 0);
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        if (!results.poseLandmarks) {
+          debug.innerHTML = `FPS: ${fps}<br>No pose detected`;
+          return;
+        }
+
+        const lm = results.poseLandmarks;
+
+        // Draw skeleton on canvas
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.translate(-canvas.width, 0);
+
+        // Draw connections
+        ctx.strokeStyle = "#00FF00";
+        ctx.lineWidth = 3;
+        CONNECTIONS.forEach(([start, end]) => {
+          if (lm[start].visibility > 0.5 && lm[end].visibility > 0.5) {
+            ctx.beginPath();
+            ctx.moveTo(lm[start].x * canvas.width, lm[start].y * canvas.height);
+            ctx.lineTo(lm[end].x * canvas.width, lm[end].y * canvas.height);
+            ctx.stroke();
+          }
+        });
+
+        // Draw landmarks
+        Object.values(POSE_LANDMARKS).forEach((idx) => {
+          const landmark = lm[idx];
+          if (landmark.visibility > 0.5) {
+            ctx.beginPath();
+            ctx.arc(
+              landmark.x * canvas.width,
+              landmark.y * canvas.height,
+              6,
+              0,
+              2 * Math.PI
+            );
+            ctx.fillStyle = "#FF0000";
+            ctx.fill();
+            ctx.strokeStyle = "#FFFFFF";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        });
+
+        ctx.restore();
+
+        // Send pose data to React Native
+        const poseData = {
+          // Upper body
+          leftShoulder: {
+            x: lm[POSE_LANDMARKS.LEFT_SHOULDER].x,
+            y: lm[POSE_LANDMARKS.LEFT_SHOULDER].y,
+            visibility: lm[POSE_LANDMARKS.LEFT_SHOULDER].visibility,
+          },
+          rightShoulder: {
+            x: lm[POSE_LANDMARKS.RIGHT_SHOULDER].x,
+            y: lm[POSE_LANDMARKS.RIGHT_SHOULDER].y,
+            visibility: lm[POSE_LANDMARKS.RIGHT_SHOULDER].visibility,
+          },
+          leftElbow: {
+            x: lm[POSE_LANDMARKS.LEFT_ELBOW].x,
+            y: lm[POSE_LANDMARKS.LEFT_ELBOW].y,
+            visibility: lm[POSE_LANDMARKS.LEFT_ELBOW].visibility,
+          },
+          rightElbow: {
+            x: lm[POSE_LANDMARKS.RIGHT_ELBOW].x,
+            y: lm[POSE_LANDMARKS.RIGHT_ELBOW].y,
+            visibility: lm[POSE_LANDMARKS.RIGHT_ELBOW].visibility,
+          },
+          leftWrist: {
+            x: lm[POSE_LANDMARKS.LEFT_WRIST].x,
+            y: lm[POSE_LANDMARKS.LEFT_WRIST].y,
+            visibility: lm[POSE_LANDMARKS.LEFT_WRIST].visibility,
+          },
+          rightWrist: {
+            x: lm[POSE_LANDMARKS.RIGHT_WRIST].x,
+            y: lm[POSE_LANDMARKS.RIGHT_WRIST].y,
+            visibility: lm[POSE_LANDMARKS.RIGHT_WRIST].visibility,
+          },
+          // Lower body
+          leftHip: {
+            x: lm[POSE_LANDMARKS.LEFT_HIP].x,
+            y: lm[POSE_LANDMARKS.LEFT_HIP].y,
+            visibility: lm[POSE_LANDMARKS.LEFT_HIP].visibility,
+          },
+          rightHip: {
+            x: lm[POSE_LANDMARKS.RIGHT_HIP].x,
+            y: lm[POSE_LANDMARKS.RIGHT_HIP].y,
+            visibility: lm[POSE_LANDMARKS.RIGHT_HIP].visibility,
+          },
+          leftKnee: {
+            x: lm[POSE_LANDMARKS.LEFT_KNEE].x,
+            y: lm[POSE_LANDMARKS.LEFT_KNEE].y,
+            visibility: lm[POSE_LANDMARKS.LEFT_KNEE].visibility,
+          },
+          rightKnee: {
+            x: lm[POSE_LANDMARKS.RIGHT_KNEE].x,
+            y: lm[POSE_LANDMARKS.RIGHT_KNEE].y,
+            visibility: lm[POSE_LANDMARKS.RIGHT_KNEE].visibility,
+          },
+          leftAnkle: {
+            x: lm[POSE_LANDMARKS.LEFT_ANKLE].x,
+            y: lm[POSE_LANDMARKS.LEFT_ANKLE].y,
+            visibility: lm[POSE_LANDMARKS.LEFT_ANKLE].visibility,
+          },
+          rightAnkle: {
+            x: lm[POSE_LANDMARKS.RIGHT_ANKLE].x,
+            y: lm[POSE_LANDMARKS.RIGHT_ANKLE].y,
+            visibility: lm[POSE_LANDMARKS.RIGHT_ANKLE].visibility,
+          },
+          // Metadata
+          fps: fps,
+        };
+
+        // Send to React Native
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(poseData));
+        }
+
+        // Update debug display
+        debug.innerHTML = `FPS: ${fps}<br>Tracking: ✓`;
+      });
+
+      // Set up camera with better error handling
+      async function initCamera() {
+        try {
+          // Check if getUserMedia is available
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            debug.innerHTML = "Camera API not available.<br>Make sure you're using a physical device, not a simulator.";
+            
+            // Try to notify React Native
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                error: "Camera API not available",
+                type: "CAMERA_ERROR"
+              }));
+            }
+            return;
+          }
+
+          const camera = new Camera(video, {
+            onFrame: async () => {
+              // Resize canvas to match video
+              if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+              }
+              await pose.send({ image: video });
+            },
+            width: 640,
+            height: 480,
+            facingMode: "user", // Front camera
+          });
+
+          await camera.start();
+          debug.innerHTML = "Camera started...";
+        } catch (err) {
+          debug.innerHTML = `Camera error: ${err.message}`;
+          console.error("Camera error:", err);
+          
+          // Notify React Native of the error
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              error: err.message,
+              type: "CAMERA_ERROR"
+            }));
+          }
+        }
+      }
+
+      // Initialize camera
+      initCamera();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "TrueForm",
+    "slug": "TrueForm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow TrueForm to access your camera for exercise tracking"
+        }
+      ]
+    ],
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.trueform.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "TrueForm needs camera access to track your exercises and count reps"
+      }
+    },
+    "android": {
+      "package": "com.trueform.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
