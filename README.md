@@ -114,7 +114,3 @@ private readonly ELBOWS_EXTENDED = 140;    // Degrees
 ### Reps not counting
 - Make sure you're completing the full range of motion
 - Check the debug info (tap bug icon) to see if position/angles are being tracked
-
-## License
-
-MIT License
